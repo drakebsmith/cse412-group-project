@@ -41,7 +41,9 @@ except Exception as e:
 #       5. Finally, run this program using the command "python gemini_api_tester.py" and behold some random fun fact from programming history. 
 #          Feel free to mess around with this file to experiment with using the Gemini API as we work on this project!
 
-#       6. Once all of this is done, the venv folder will retain the installed libraries from dependencies.txt so the general workflow for this
+#       6. To terminate the virtual environment, simply run the command "deactivate".
+
+#       7. Once all of this is done, the venv folder will retain the installed libraries from dependencies.txt so the general workflow for this
 #          project from here on out is as follows:
 
 #               - Enter the cloned repository in a CLI.
