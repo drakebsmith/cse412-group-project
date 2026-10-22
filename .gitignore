@@ -151,13 +151,7 @@ activemq-data/
 
 # Environments
 .env
-.envrc
-.venv
-env/
 venv/
-ENV/
-env.bak/
-venv.bak/
 
 # Spyder project settings
 .spyderproject
@@ -218,3 +212,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# API testing file (might change)
+# gemini_api_tester.py
