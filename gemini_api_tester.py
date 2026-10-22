@@ -38,7 +38,7 @@ except Exception as e:
 #       4. Now, copy .env.template as simply ".env" and reassign "GEMINI_API_KEY" to your API key. 
 #          If you only modify the template, the program will be unable to retrieve your API key as it strictly looks for ".env"
 
-#       5. Finally, run this program using the command "python gemini_api_tester.py" and behold some random fun fact from programming history. 
+#       5. Finally, run this program using the command "python gemini_api_tester.py" and behold some fun, random fact! 
 #          Feel free to mess around with this file to experiment with using the Gemini API as we work on this project!
 
 #       6. To terminate the virtual environment, simply run the command "deactivate".
@@ -52,4 +52,4 @@ except Exception as e:
 
 #               - Work on the project (You can modify the .py files in an editor and run any new changes while the virtual environment is running).
 
-#       Note: your .env file, venv/ folder, and this file are in .gitignore so they will not be present in commits.
+#       Note: your .env file and venv/ folder (as well as this file once everyone has pulled it) are in .gitignore so they will not be present in commits.
