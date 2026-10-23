@@ -1,8 +1,4 @@
--- Group 43: ER-to-relational transformation, PostgreSQL.
--- Run against a new database: psql -v ON_ERROR_STOP=1 -d YOUR_DATABASE -f sql/schema.sql
--- IDs are supplied by the source dataset.
--- Convert CSV missing markers to NULL and duration values to INTERVAL before import.
--- Match lap/pit CSV (raceId, driverId) pairs to results to obtain result_id.
+-- Run against a new database: psql -v ON_ERROR_STOP=1 -d YOUR_DATABASE -f sql/updated_schema.sql
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS circuits (
