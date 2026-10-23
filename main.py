@@ -47,19 +47,207 @@ def insert_data(connection):
     print(f"Imported CSV rows: {counts}")
     return counts
 
-def get_database_schema():
-    # TODO: Function that Gemini will call to retrieve the tables, columns, and relationships of the database
-
+def get_database_schema(table_names=None) -> str:
     '''
         Input: list of table names (optional)
 
-        Output: table names, columns, datatypes, primary keys, foreign keys, and descriptions of important fields
+        Output: table names, columns, datatypes, primary keys, foreign keys,
+        and descriptions of important fields
 
         Database interactions: PostgreSQL schema metadata and field descriptions
     '''
 
-def execute_query():
-    # TODO: Function that Gemini will call to execute a user's natural language query as a SQL query
+    connection = connect_server()
+
+    field_descriptions = {
+        # Circuits
+        "circuits.circuitid": "Id",
+        "circuits.circuitref": "Reference name of circuit",
+        "circuits.name": "Actual name of circuit",
+        "circuits.location": "City",
+        "circuits.country": "Country",
+
+        # Drivers
+        "drivers.driverid": "Id",
+        "drivers.driverref": "Reference name of driver",
+        "drivers.number": "Driver number",
+        "drivers.code": "3-letter alphabet code of driver",
+        "drivers.forename": "First name",
+        "drivers.surname": "Last name",
+        "drivers.dob": "Date of birth",
+        "drivers.nationality": "Country",
+
+        # Constructors
+        "constructors.constructorid": "Id",
+        "constructors.constructorref": "Reference name of constructor",
+        "constructors.name": "Actual name of constructor",
+        "constructors.nationality": "Country",
+
+        # Statuses
+        "statuses.statusid": "Id",
+        "statuses.status": "Name",
+
+        # Races
+        "races.raceid": "Id of race",
+        "races.year": "Year",
+        "races.round": "Race number",
+        "races.circuitid": "Id of circuit",
+        "races.name": "Name of race",
+        "races.date": "Date",
+        "races.time": "Time",
+
+        # Results
+        "results.resultid": "Id",
+        "results.raceid": "Id of race",
+        "results.driverid": "Id of driver",
+        "results.constructorid": "Id of constructor",
+        "results.statusid": "Id of result status",
+        "results.number": "Car number",
+        "results.grid": "Position in starting grid",
+        "results.positionorder": "Final rank",
+        "results.points": "Points",
+        "results.laps": "Number of laps completed",
+        "results.time": "Total elapsed race time",
+        "results.fastestlaptime": "Fastest lap time recorded by the driver",
+        "results.fastestlapspeed": "Speed recorded during the driver's fastest lap",
+
+        # Pit Stops
+        "pit_stops.resultid": "Id of the corresponding race result",
+        "pit_stops.stop": "Stop number",
+        "pit_stops.lap": "Lap number",
+        "pit_stops.time": "Time of pit stop",
+        "pit_stops.duration": "Duration of pit stop",
+
+        # Lap Times
+        "lap_times.resultid": "Id of the corresponding race result",
+        "lap_times.lap": "Lap number",
+        "lap_times.position": "Driver position on that lap",
+        "lap_times.time": "Time"
+    }
+
+    try:
+        connection.set_session(readonly=True)
+
+        with connection.cursor() as cursor:
+
+            # Get columns and datatypes
+            cursor.execute("""
+                SELECT table_name, column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                ORDER BY table_name, ordinal_position;
+            """)
+            columns = cursor.fetchall()
+
+            # Get primary keys
+            cursor.execute("""
+                SELECT
+                    c.relname,
+                    a.attname
+                FROM pg_constraint p
+                JOIN pg_class c
+                    ON c.oid = p.conrelid
+                JOIN pg_namespace n
+                    ON n.oid = c.relnamespace
+                JOIN unnest(p.conkey) AS k(attnum)
+                    ON TRUE
+                JOIN pg_attribute a
+                    ON a.attrelid = c.oid
+                    AND a.attnum = k.attnum
+                WHERE p.contype = 'p'
+                    AND n.nspname = 'public';
+            """)
+            primary_keys = set(cursor.fetchall())
+
+            # Get foreign keys
+            cursor.execute("""
+                SELECT
+                    source.relname,
+                    source_col.attname,
+                    target.relname,
+                    target_col.attname
+                FROM pg_constraint p
+                JOIN pg_class source
+                    ON source.oid = p.conrelid
+                JOIN pg_class target
+                    ON target.oid = p.confrelid
+                JOIN pg_namespace n
+                    ON n.oid = source.relnamespace
+                JOIN unnest(p.conkey) WITH ORDINALITY
+                    AS source_key(attnum, pos)
+                    ON TRUE
+                JOIN unnest(p.confkey) WITH ORDINALITY
+                    AS target_key(attnum, pos)
+                    ON source_key.pos = target_key.pos
+                JOIN pg_attribute source_col
+                    ON source_col.attrelid = source.oid
+                    AND source_col.attnum = source_key.attnum
+                JOIN pg_attribute target_col
+                    ON target_col.attrelid = target.oid
+                    AND target_col.attnum = target_key.attnum
+                WHERE p.contype = 'f'
+                    AND n.nspname = 'public';
+            """)
+            foreign_keys = {
+                (table, column): (foreign_table, foreign_column)
+                for table, column, foreign_table, foreign_column
+                in cursor.fetchall()
+            }
+
+            if table_names:
+                if isinstance(table_names, str):
+                    table_names = [table_names]
+
+                columns = [
+                    row for row in columns
+                    if row[0] in table_names
+                ]
+
+            if not columns:
+                return "No matching tables were found"
+
+            schema_info = []
+            current_table = None
+
+            for table_name, column_name, data_type in columns:
+                if table_name != current_table:
+                    schema_info.append(f"\nTable: {table_name}")
+                    current_table = table_name
+
+                column_info = f"  - {column_name} ({data_type})"
+
+                if (table_name, column_name) in primary_keys:
+                    column_info += " [PRIMARY KEY]"
+
+                if (table_name, column_name) in foreign_keys:
+                    foreign_table, foreign_column = foreign_keys[
+                        (table_name, column_name)
+                    ]
+
+                    column_info += (
+                        f" [FOREIGN KEY -> "
+                        f"{foreign_table}({foreign_column})]"
+                    )
+
+                description = field_descriptions.get(
+                    f"{table_name}.{column_name}"
+                )
+
+                if description:
+                    column_info += f" | Description: {description}"
+
+                schema_info.append(column_info)
+
+            return "\n".join(schema_info)
+
+    except Exception as schema_error:
+        return f"Error reading schema: {str(schema_error)}"
+
+    finally:
+        connection.close()
+
+def execute_query(sql_query: str):
+    # Function that Gemini will call to execute a user's natural language query as a SQL query
 
     '''
         Input: SQL query crafted by Gemini
@@ -68,6 +256,52 @@ def execute_query():
     
         Database interactions: read-only SQL queries against the PostgreSQL database; should support filtering, joins, grouping and aggregate functions like COUNT(), SUM(), and AVG()
     '''
+    # Opens a connection to the local PostgreSQL database 
+    connection = connect_server()
+    try:
+        query = sql_query.strip().lower()
+        # Prevents Gemini from executing any queries that modify the database
+        if not (query.startswith("select") or query.startswith("with")):
+            return {
+                "columns" : [],
+                "rows" : [],
+                "row_count" : 0,
+                "error" : "Only read-only SELECT queries are allowed."
+            }
+
+        connection.set_session(readonly = True)
+
+        with connection.cursor() as cursor:
+            cursor.execute(sql_query)
+
+            if cursor.description is None:
+                return {
+                    "columns": [],
+                    "rows": [],
+                    "row_count": 0,
+                    "error": None
+                }
+
+            columns = [column[0] for column in cursor.description]
+            results = cursor.fetchmany(50)
+            return {
+                "columns": columns,
+                "rows": results,
+                "row_count": len(results),
+                "error": None
+            }
+
+    except Exception as query_error:
+        # Returns an error message if the SQL query fails to execute
+        return {
+            "columns": [],
+            "rows": [],
+            "row_count": 0,
+            "error": str(query_error)
+        }
+
+    finally:
+        connection.close()
 
 def get_data_coverage():
     # TODO: Function that Gemini will call to check whether the given tables contains the records needed for the user's natural language query
