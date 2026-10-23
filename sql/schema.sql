@@ -5,7 +5,7 @@
 -- Match lap/pit CSV (raceId, driverId) pairs to results to obtain result_id.
 BEGIN;
 
-CREATE TABLE IF NOT EXISTS circuits (
+CREATE TABLE circuits (
     circuit_id INTEGER PRIMARY KEY,
     circuit_ref TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS circuits (
     country TEXT
 );
 
-CREATE TABLE IF NOT EXISTS drivers (
+CREATE TABLE drivers (
     driver_id INTEGER PRIMARY KEY,
     driver_ref TEXT NOT NULL UNIQUE,
     number INTEGER CHECK (number >= 0),
@@ -24,19 +24,19 @@ CREATE TABLE IF NOT EXISTS drivers (
     nationality TEXT
 );
 
-CREATE TABLE IF NOT EXISTS constructors (
+CREATE TABLE constructors (
     constructor_id INTEGER PRIMARY KEY,
     constructor_ref TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     nationality TEXT
 );
 
-CREATE TABLE IF NOT EXISTS statuses (
+CREATE TABLE statuses (
     status_id INTEGER PRIMARY KEY,
     status TEXT NOT NULL -- Descriptive label added to the diagram's ID-only entity.
 );
 
-CREATE TABLE IF NOT EXISTS races (
+CREATE TABLE races (
     race_id INTEGER PRIMARY KEY,
     year INTEGER NOT NULL CHECK (year >= 1950),
     round INTEGER NOT NULL CHECK (round > 0),
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS races (
     UNIQUE (year, round)
 );
 
-CREATE TABLE IF NOT EXISTS results (
+CREATE TABLE results (
     result_id INTEGER PRIMARY KEY,
     race_id INTEGER NOT NULL REFERENCES races(race_id),
     driver_id INTEGER NOT NULL REFERENCES drivers(driver_id),
@@ -60,11 +60,12 @@ CREATE TABLE IF NOT EXISTS results (
     laps INTEGER CHECK (laps >= 0),
     elapsed_time INTERVAL CHECK (elapsed_time >= INTERVAL '0 seconds'),
     fastest_lap_time INTERVAL CHECK (fastest_lap_time > INTERVAL '0 seconds'),
-    fastest_lap_speed NUMERIC(8,3) CHECK (fastest_lap_speed > 0) -- km/h assumption
+    fastest_lap_speed NUMERIC(8,3) CHECK (fastest_lap_speed > 0), -- km/h assumption
+    UNIQUE (race_id, driver_id)
 );
 
 -- Weak entities: parent result ID plus the partial key from the ER diagram.
-CREATE TABLE IF NOT EXISTS pit_stops (
+CREATE TABLE pit_stops (
     result_id INTEGER NOT NULL REFERENCES results(result_id),
     stop INTEGER NOT NULL CHECK (stop > 0),
     lap INTEGER NOT NULL CHECK (lap >= 0),
@@ -73,7 +74,7 @@ CREATE TABLE IF NOT EXISTS pit_stops (
     PRIMARY KEY (result_id, stop)
 );
 
-CREATE TABLE IF NOT EXISTS lap_times (
+CREATE TABLE lap_times (
     result_id INTEGER NOT NULL REFERENCES results(result_id),
     lap INTEGER NOT NULL CHECK (lap > 0),
     position INTEGER CHECK (position > 0),

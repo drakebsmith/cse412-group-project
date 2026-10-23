@@ -1,19 +1,85 @@
+# Imports will likely need modification since we'll need to interface with the PostgreSQL server and Kaggle
+import os
 import sys
+import psycopg2
+from psycopg2.extras import execute_values
+from dotenv import load_dotenv
 
-from database_import import connect_database, initialize_schema, import_dataset
-
-# Preserve entry points used by the rest of the application.
+# Establishes connection with local PostgreSQL server via handshake, returns connection object 
 def connect_server():
-    return connect_database()
+    load_dotenv()
 
+    try:
+        connection = psycopg2.connect(
+            dbname = os.getenv("DB_NAME"),
+            user = os.getenv("DB_USER"),
+            password = os.getenv("DB_PASSWORD"),
+            host = os.getenv("DB_HOST"),
+            port = os.getenv("DB_PORT")
+        )  
+        return connection
+    
+    except Exception as connection_error:
+        print(f"Error: connection to PostgreSQL server could not be established due to {connection_error}")
+        sys.exit(1) # Only utilize for errors that should terminate the program!
 
+# Commits the dataset's schema to the database
 def commit_schema(connection):
-    initialize_schema(connection)
+    with connection.cursor() as cursor:
+        try:
+            with open("sql/schema.sql", "r", encoding = "utf-8") as file:
+                script = file.read()
+            cursor.execute(script)
+            connection.commit()
 
+        except Exception as cursor_error:
+            print(f"Error: contents of schema.sql could not be read due to {cursor_error}")
+            sys.exit(1)
 
-def insert_data(connection, data_dir=None):
-    return import_dataset(connection, data_dir)
+# Inserts the data from Kaggle into the database
+def insert_data(connection):
+    tables = [
+        "circuits", "drivers",
+        "constructors", "statuses",
+        "races", "results",
+        "pit_stops", "lap_times"
+    ]
 
+    table_columns = {
+        "circuits" : "circuit_id, circuit_ref, name, location, country",
+        "drivers" : "driver_id, driver_ref, number, code, forename, surname, dob, nationality",
+        "constructors" : "constructor_id, constructor_ref, name, nationality",
+        "statuses" : "status_id, status",
+        "races" : "race_id, year, round, name, race_date, start_time, circuit_id",
+        "results" : "result_id, race_id, driver_id, constructor_id, status_id, number, grid, ",
+        "pit_stops" : "",
+        "lap_times" : "raceId, driverId"
+    }
+
+    try:
+        cursor = connection.cursor()
+        #cursor.execute("""
+        #    SELECT table_name FROM information_schema.tables
+        #    WHERE table_schema = 'public';
+        #""")
+        # tables = cursor.fetchall()
+        for table in tables:
+            cursor.execute(f"""SELECT COUNT(*) FROM {table};""")
+            contents = cursor.fetchone()[0]
+            if contents > 0:
+                print(f"{table} is empty!")
+                return
+            else:
+                with open(f"f1_data/{table}.csv", "r", encoding = "utf-8") as file:
+                    cursor.copy_expert(
+                        f"""COPY {table} () FROM STDIN WITH CSV HEADER""",
+                        file
+                    )
+                connection.commit()
+                # print(f"{table_name} is filled!")
+
+    except Exception as insert_error:
+        print(f"Error: data could not be inserted due to {insert_error}")
 
 def get_database_schema():
     # TODO: Function that Gemini will call to retrieve the tables, columns, and relationships of the database
@@ -53,16 +119,7 @@ def main(connection):
     print("Temp")
 
 if __name__ == "__main__":
-    connection = None
-    try:
-        connection = connect_server()
-        report = insert_data(connection)
-        print("Data already loaded" if report["skipped"] else "Data imported")
-        print(report["counts"])
-        main(connection)
-    except Exception as error:
-        print(f"Database setup failed: {error}", file=sys.stderr)
-        sys.exit(1)
-    finally:
-        if connection is not None:
-            connection.close()
+    connection = connect_server()
+    commit_schema(connection)
+    insert_data(connection)
+    main(connection)
