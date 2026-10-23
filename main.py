@@ -30,60 +30,22 @@ def connect_server():
 def commit_schema(connection):
     with connection.cursor() as cursor:
         try:
-            with open("sql/schema.sql", "r", encoding = "utf-8") as file:
+            with open("sql/updated_schema.sql", "r", encoding = "utf-8") as file:
                 script = file.read()
             cursor.execute(script)
             connection.commit()
 
         except Exception as cursor_error:
-            print(f"Error: contents of schema.sql could not be read due to {cursor_error}")
+            print(f"Error: contents of updated_schema.sql could not be read due to {cursor_error}")
             sys.exit(1)
 
-# Inserts the data from Kaggle into the database (NEEDS TO BE COMPLETED)
+# Initial load only: schema must exist and all eight target tables must be empty.
 def insert_data(connection):
-    tables = [
-        "circuits", "drivers",
-        "constructors", "statuses",
-        "races", "results",
-        "pit_stops", "lap_times"
-    ]
+    from import_mapping import import_csv_data
 
-    # This hashmap will be used for the insertion/copying of the .csv data by columns
-    table_columns = {
-        "circuits" : "circuit_id, circuit_ref, name, location, country",
-        "drivers" : "driver_id, driver_ref, number, code, forename, surname, dob, nationality",
-        "constructors" : "constructor_id, constructor_ref, name, nationality",
-        "statuses" : "status_id, status",
-        "races" : "race_id, year, round, name, race_date, start_time, circuit_id",
-        "results" : "result_id, race_id, driver_id, constructor_id, status_id, number, grid, ",
-        "pit_stops" : "",
-        "lap_times" : "raceId, driverId"
-    }
-
-    try:
-        cursor = connection.cursor()
-        #cursor.execute("""
-        #    SELECT table_name FROM information_schema.tables
-        #    WHERE table_schema = 'public';
-        #""")
-        # tables = cursor.fetchall()
-        for table in tables:
-            cursor.execute(f"""SELECT COUNT(*) FROM {table};""")
-            contents = cursor.fetchone()[0]
-            if contents > 0:
-                print(f"{table} is empty!")
-                return
-            else:
-                with open(f"f1_data/{table}.csv", "r", encoding = "utf-8") as file:
-                    cursor.copy_expert(
-                        f"""COPY {table} () FROM STDIN WITH CSV HEADER""",
-                        file
-                    )
-                connection.commit()
-                # print(f"{table_name} is filled!")
-
-    except Exception as insert_error:
-        print(f"Error: data could not be inserted due to {insert_error}")
+    counts = import_csv_data(connection)
+    print(f"Imported CSV rows: {counts}")
+    return counts
 
 def get_database_schema():
     # TODO: Function that Gemini will call to retrieve the tables, columns, and relationships of the database
