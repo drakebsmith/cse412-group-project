@@ -60,8 +60,7 @@ CREATE TABLE IF NOT EXISTS results (
     laps INTEGER CHECK (laps >= 0),
     "time" INTERVAL CHECK ("time" >= INTERVAL '0 seconds'),
     fastestLapTime INTERVAL CHECK (fastestLapTime > INTERVAL '0 seconds'),
-    fastestLapSpeed NUMERIC(8,3) CHECK (fastestLapSpeed > 0), -- km/h assumption
-    UNIQUE (raceId, driverId)
+    fastestLapSpeed NUMERIC(8,3) CHECK (fastestLapSpeed > 0) -- km/h assumption
 );
 
 -- Weak entities: parent result ID plus the partial key from the ER diagram.
