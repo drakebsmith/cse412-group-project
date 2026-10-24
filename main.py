@@ -1,6 +1,7 @@
 # Imports will likely need modification since we'll need to interface with the PostgreSQL server and Kaggle
 import os
 import sys
+import json
 import psycopg2
 from psycopg2.extras import execute_values
 from dotenv import load_dotenv
@@ -249,7 +250,6 @@ def execute_query(sql_query: str):
     
         Database interactions: read-only SQL queries against the PostgreSQL database; should support filtering, joins, grouping and aggregate functions like COUNT(), SUM(), and AVG()
     '''
-    print(f"[TOOL] execute_query called with: {sql_query}")
     # Opens a connection to the local PostgreSQL database 
     connection = connect_server()
     try:
@@ -278,10 +278,12 @@ def execute_query(sql_query: str):
 
             columns = [column[0] for column in cursor.description]
             results = cursor.fetchmany(50)
+
+            safe_results = json.loads(json.dumps(results, default=str))
             return {
                 "columns": columns,
-                "rows": results,
-                "row_count": len(results),
+                "rows": safe_results,
+                "row_count": len(safe_results),
                 "error": None
             }
 
@@ -326,6 +328,7 @@ def main():
         "translate the question into a SQL query, and execute the query using execute_query(). "
         "Return the results in natural language to the user."
     )
+ 
 
     # Gemini object that the user engages with
     agent = client.chats.create(
