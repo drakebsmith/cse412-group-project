@@ -6,6 +6,7 @@ from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from typing import List, Optional, Dict
 
 # Globally loads the local .env file
 load_dotenv()
@@ -69,8 +70,31 @@ def execute_query():
         Database interactions: read-only SQL queries against the PostgreSQL database; should support filtering, joins, grouping and aggregate functions like COUNT(), SUM(), and AVG()
     '''
 
-def get_data_coverage():
-    # TODO: Function that Gemini will call to check whether the given tables contains the records needed for the user's natural language query
+
+# Describes how to reach `year` for each table (None = no year dimension),
+# and which fields are worth checking for NULLs.
+TABLE_META = {
+    "races":        {"from": "races r", "year_expr": "r.year",
+                      "nullable_fields": ["r.time"]},
+    "results":      {"from": "results res JOIN races r ON res.raceid = r.raceid",
+                      "year_expr": "r.year",
+                      "nullable_fields": ["res.time", "res.fastestlaptime", "res.fastestlapspeed"]},
+    "pit_stops":    {"from": "pit_stops ps JOIN results res ON ps.resultid = res.resultid "
+                              "JOIN races r ON res.raceid = r.raceid",
+                      "year_expr": "r.year",
+                      "nullable_fields": ["ps.time", "ps.duration"]},
+    "lap_times":    {"from": "lap_times lt JOIN results res ON lt.resultid = res.resultid "
+                              "JOIN races r ON res.raceid = r.raceid",
+                      "year_expr": "r.year",
+                      "nullable_fields": ["lt.position"]},
+    "circuits":     {"from": "circuits", "year_expr": None, "nullable_fields": ["location", "country"]},
+    "drivers":      {"from": "drivers", "year_expr": None, "nullable_fields": ["code", "dob", "nationality"]},
+    "constructors": {"from": "constructors", "year_expr": None, "nullable_fields": ["nationality"]},
+    "statuses":     {"from": "statuses", "year_expr": None, "nullable_fields": []},
+}
+
+def get_data_coverage(table_names: List[str], year: Optional[int] = None) -> Dict:
+    # Function that Gemini will call to check whether the given tables contains the records needed for the user's natural language query
 
     '''
         Input: relevant table names and, optionally, a season year
@@ -79,6 +103,48 @@ def get_data_coverage():
     
         Database interactions: predefined summary SQL queries against the PostgreSQL database, joining specific tables to determine season coverage.
     '''
+
+    report = {}
+    with connection:
+        with connection.cursor() as cursor:
+            for table in table_names:
+                meta = TABLE_META.get(table)
+                if meta is None:
+                    report[table] = {"error": f"'{table}' is not a recognized table"}
+                    continue
+
+                from_clause = meta["from"]
+                year_column = meta["year_expr"]
+                entry = {"year_scoped": year_column is not None}
+
+                if year_column is None:
+                    cursor.execute(f"SELECT COUNT(*) FROM {from_clause}")
+                    entry["total_rows"] = cursor.fetchone()[0]
+                else:
+                    cursor.execute(f"SELECT MIN({year_column}), MAX({year_column}) FROM {from_clause}")
+                    min_year, max_year = cursor.fetchone()
+                    entry["year_range"] = {"min": min_year, "max": max_year}
+
+                    if year is not None:
+                        cursor.execute(
+                            f"SELECT COUNT(*) FROM {from_clause} WHERE {year_column} = %s", (year,)
+                        )
+                        entry["row_count_for_year"] = cursor.fetchone()[0]
+
+                missing_counts = {}
+                for field in meta["nullable_fields"]:
+                    query = f"SELECT COUNT(*) FROM {from_clause} WHERE {field} IS NULL"
+                    params = None
+                    if year is not None and year_column is not None:
+                        query += f" AND {year_column} = %s"
+                        params = (year,)
+                    cursor.execute(query, params)
+                    field_name = field.split(".")[-1]  # "r.time" -> "time", for a cleaner key
+                    missing_counts[field_name] = cursor.fetchone()[0]
+                entry["missing_value_counts"] = missing_counts
+
+                report[table] = entry
+    return report
 
 def main():
     personal_key = os.getenv("GEMINI_API_KEY")
