@@ -47,7 +47,8 @@ def insert_data(connection):
     print(f"Imported CSV rows: {counts}")
     return counts
 
-def get_database_schema(table_names=None) -> str:
+def get_database_schema() -> str:
+    
     '''
         Input: list of table names (optional)
 
@@ -194,15 +195,7 @@ def get_database_schema(table_names=None) -> str:
                 in cursor.fetchall()
             }
 
-            if table_names:
-                if isinstance(table_names, str):
-                    table_names = [table_names]
-
-                columns = [
-                    row for row in columns
-                    if row[0] in table_names
-                ]
-
+       
             if not columns:
                 return "No matching tables were found"
 
@@ -248,7 +241,7 @@ def get_database_schema(table_names=None) -> str:
 
 def execute_query(sql_query: str):
     # Function that Gemini will call to execute a user's natural language query as a SQL query
-
+    
     '''
         Input: SQL query crafted by Gemini
     
@@ -256,6 +249,7 @@ def execute_query(sql_query: str):
     
         Database interactions: read-only SQL queries against the PostgreSQL database; should support filtering, joins, grouping and aggregate functions like COUNT(), SUM(), and AVG()
     '''
+    print(f"[TOOL] execute_query called with: {sql_query}")
     # Opens a connection to the local PostgreSQL database 
     connection = connect_server()
     try:
